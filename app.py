@@ -1,64 +1,70 @@
-from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS
-import requests
-import openpyxl
-from io import BytesIO
-
-app = Flask(__name__)
-CORS(app)  # ✅ Enable CORS for Wix
-
-# URL to LSRA template hosted on Wix
-TEMPLATE_URL = "https://fd9e47be-8bae-4028-9abb-e122237a79d5.usrfiles.com/ugd/fd9e47_c53aa7592925425dbb3e70ec9f45a74d.xlsx"
-
-
-@app.route("/", methods=["GET"])
-def index():
-    return jsonify({"status": "ok", "message": "LSRA server running"})
-
-
 @app.route("/generate", methods=["POST"])
 def generate_lsra():
     try:
         data = request.get_json(force=True)
         print("🔹 Incoming LSRA request:", data)
 
-        # Download fresh template from Wix
+        # --- Fetch LSRA template from Wix (includes ASHE logo & formatting) ---
+        import requests
+        from io import BytesIO
+
+        TEMPLATE_URL = "https://fd9e47be-8bae-4028-9abb-e122237a79d5.usrfiles.com/ugd/fd9e47_c53aa7592925425dbb3e70ec9f45a74d.xlsx"
         resp = requests.get(TEMPLATE_URL)
         resp.raise_for_status()
+
         wb = openpyxl.load_workbook(BytesIO(resp.content))
         ws = wb.active
 
-        # Fill row A15 with formatted info
-        ws["A15"] = (
-            f"Date: {data.get('dateOfInspection', '')}\n"
-            f"Location Address: {data.get('address', '')}\n"
-            "Action(s) Taken: Creation of Corrective Action Plan, "
-            "notified engineering of deficiencies\n"
-            f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}\n"
-            "ILSM Required? YES"
-        )
+        # --- Build formatted lines ---
+        date_val = data.get("dateOfInspection", "")
+        address_val = data.get("address", "")
+        inspector_val = data.get("inspector", "")
 
-        # Save workbook into memory
+        # Clear old value
+        ws["A15"] = None
+
+        from openpyxl.styles import Font
+        from openpyxl.cell.rich_text import CellRichText, TextBlock
+
+        # Create rich text for A15
+        rich_text = CellRichText()
+
+        rich_text.append(TextBlock(Font(bold=True), "Date: "))
+        rich_text.append(TextBlock(Font(italic=True), date_val + "\n"))
+
+        rich_text.append(TextBlock(Font(bold=True), "Location Address: "))
+        rich_text.append(TextBlock(Font(italic=True), address_val + "\n"))
+
+        rich_text.append(TextBlock(Font(bold=True), "Action(s) Taken: "))
+        rich_text.append(TextBlock(Font(italic=True), "Creation of Corrective Action Plan, notified engineering of deficiencies\n"))
+
+        rich_text.append(TextBlock(Font(bold=True), "Person Completing Life Safety Risk Matrix: "))
+        rich_text.append(TextBlock(Font(italic=True), inspector_val + "\n"))
+
+        rich_text.append(TextBlock(Font(bold=True), "ILSM Required? YES"))
+
+        # Apply styled text to cell A15
+        ws["A15"].value = rich_text
+
+        # --- Build filename ---
+        facility = data.get("facilityName", "Facility")
+        floor = data.get("floorName", "Floor")
+        safe_facility = facility.replace(" ", "_")
+        safe_floor = floor.replace(" ", "_")
+        filename = f"LSRA - {safe_facility} - {safe_floor}.xlsx"
+
+        # --- Save to memory ---
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        # Build filename
-        safe_facility = data.get("facilityName", "Facility").replace(" ", "_")
-        safe_floor = data.get("floorName", "Floor").replace(" ", "_")
-        filename = f"LSRA_{safe_facility}_{safe_floor}.xlsx"
-
         return send_file(
             output,
-            as_attachment=True,
-            download_name=filename,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=filename
         )
 
     except Exception as e:
-        print("❌ Error:", e)
+        print("❌ LSRA generation failed:", str(e))
         return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
