@@ -7,9 +7,6 @@ import xlsxwriter
 app = Flask(__name__)
 CORS(app)
 
-# Logo path (must be in repo root and committed to GitHub)
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "ASHE_logo.png")
-
 @app.route("/")
 def index():
     return jsonify({"status": "ok", "message": "LSRA server running"})
@@ -31,24 +28,15 @@ def generate_lsra():
         bold = wb.add_format({'bold': True, 'font_name': 'Calibri', 'font_size': 11})
         italic = wb.add_format({'italic': True, 'font_name': 'Calibri', 'font_size': 11})
         normal = wb.add_format({'font_name': 'Calibri', 'font_size': 11})
+
         wrap = wb.add_format({'text_wrap': True, 'font_name': 'Calibri', 'font_size': 11})
 
         # Adjust column width
         ws.set_column("A:A", 80, wrap)
 
-        # Insert ASHE logo if available
-        if os.path.exists(LOGO_PATH):
-            ws.insert_image("A1", LOGO_PATH, {"x_scale": 0.5, "y_scale": 0.5})
-            print("✅ ASHE logo inserted")
-        else:
-            print("⚠️ ASHE logo not found at", LOGO_PATH)
-
-        # Title row
-        ws.write("A3", "LIFE SAFETY RISK ASSESSMENT TOOL", bold)
-
         # Row 15: Date
         ws.write_rich_string(
-            14, 0,  # row 15 (zero-indexed)
+            14, 0,  # row 15, col A (zero-indexed)
             bold, "Date: ",
             italic, data.get("dateOfInspection", ""),
             normal, ""
