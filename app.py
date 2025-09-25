@@ -8,8 +8,9 @@ from openpyxl.styles import Font, Alignment
 app = Flask(__name__)
 CORS(app)
 
-# Local template path (keep LSRA_TEMPLATE.xlsx in your repo root)
+# Paths (put both files in the repo root)
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
+LOGO_PATH     = os.path.join(os.path.dirname(__file__), "ASHE_logo.png")
 
 @app.route("/")
 def index():
@@ -33,44 +34,80 @@ def generate_lsra():
 
         ws = wb.active
 
-        # ---- Unmerge rows 15–19 so we can write safely ----
+        # ---- SAFETY: Unmerge anything touching rows 15–19 so we can write cleanly ----
         for row in range(15, 20):
-            for merged in list(ws.merged_cells.ranges):
-                if row >= merged.min_row and row <= merged.max_row:
-                    print(f"🔎 Unmerging cells: {str(merged)}")
-                    ws.unmerge_cells(str(merged))
+            for rng in list(ws.merged_cells.ranges):
+                if rng.min_row <= row <= rng.max_row:
+                    print(f"🔎 Unmerging cells: {str(rng)}")
+                    ws.unmerge_cells(str(rng))
 
-        # ---- Enable wrap text & align top ----
-        for row in range(15, 20):
-            ws[f"A{row}"].alignment = Alignment(wrap_text=True, vertical="top")
+        # ---- Header/logo + title (try real header first; fallback to sheet cells) ----
+        def add_logo_and_title():
+            # Try true print header image (may not be supported in some envs)
+            try:
+                from openpyxl.drawing.image import Image as XLImage
+                if os.path.exists(LOGO_PATH):
+                    img = XLImage(LOGO_PATH)
+                    try:
+                        # Try header image (left header) + &G placeholder
+                        hf = ws.header_footer
+                        hf.add_image(img, "L")        # left header image
+                        hf.left_header = "&G"         # render that image
+                        print("✅ ASHE logo placed in page header (left).")
+                    except Exception as e:
+                        print("⚠️ Header image failed, placing at A1 instead:", e)
+                        ws.add_image(img, "A1")
+                        # Add centered title in row 3 as fallback
+                        try:
+                            ws.merge_cells("A3:D3")
+                        except Exception:
+                            pass
+                        ws["A3"] = "LIFE SAFETY RISK ASSESSMENT TOOL"
+                        ws["A3"].font = Font(name="Calibri", size=14, bold=True)
+                        ws["A3"].alignment = Alignment(horizontal="center", vertical="center")
+                else:
+                    print("⚠️ ASHE logo not found at", LOGO_PATH)
+            except Exception as e:
+                print("⚠️ Could not process ASHE logo:", e)
 
-        # ---- Fill rows 15–19 (labels + values in one cell) ----
-        ws["A15"] = f"Date: {data.get('dateOfInspection', '')}"
-        ws["A15"].font = Font(name="Calibri", size=11)
+            # Try to set center header text too (safe even without image)
+            try:
+                ws.header_footer.center_header = "LIFE SAFETY RISK ASSESSMENT TOOL"
+                print("✅ Title set in page header (center).")
+            except Exception as e:
+                print("⚠️ Header title failed; keeping in-sheet fallback:", e)
+                try:
+                    ws.merge_cells("A3:D3")
+                except Exception:
+                    pass
+                ws["A3"] = "LIFE SAFETY RISK ASSESSMENT TOOL"
+                ws["A3"].font = Font(name="Calibri", size=14, bold=True)
+                ws["A3"].alignment = Alignment(horizontal="center", vertical="center")
 
-        ws["A16"] = f"Location Address: {data.get('address', '')}"
-        ws["A16"].font = Font(name="Calibri", size=11)
+        add_logo_and_title()
 
-        ws["A17"] = "Action(s) Taken: Creation of Corrective Action Plan, notified engineering of deficiencies"
-        ws["A17"].font = Font(name="Calibri", size=11)
+        # ---- Wrap & align the target cells ----
+        for r in range(15, 20):
+            a = ws[f"A{r}"]
+            a.alignment = Alignment(wrap_text=True, vertical="top")
+            a.font = Font(name="Calibri", size=11)
 
-        ws["A18"] = f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}"
-        ws["A18"].font = Font(name="Calibri", size=11)
+        # ---- Write labels + values into A15–A19 (single-cell per row; no rich runs) ----
+        ws["A15"].value = f"Date: {data.get('dateOfInspection', '')}"
+        ws["A16"].value = f"Location Address: {data.get('address', '')}"
+        ws["A17"].value = "Action(s) Taken: Creation of Corrective Action Plan, notified engineering of deficiencies"
+        ws["A18"].value = f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}"
+        ws["A19"].value = "ILSM Required? YES"
 
-        ws["A19"] = "ILSM Required? YES"
-        ws["A19"].font = Font(name="Calibri", size=11)
-
-        # Save workbook into memory
+        # ---- Save to memory and return ----
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        # File naming convention
-        facility = data.get("facilityName", "Facility").replace(" ", "_")
-        floor = data.get("floorName", "Floor").replace(" ", "_")
+        facility = (data.get("facilityName", "Facility") or "Facility").replace(" ", "_")
+        floor    = (data.get("floorName", "Floor") or "Floor").replace(" ", "_")
         filename = f"LSRA_{facility}_{floor}.xlsx"
 
-        # 🔎 Debug: confirm final file before sending
         print("📤 Preparing to send file:", filename)
         print("📦 File size in memory:", len(output.getvalue()), "bytes")
 
@@ -86,4 +123,6 @@ def generate_lsra():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # Render typically sets PORT; local default 5000
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
