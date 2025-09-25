@@ -2,14 +2,13 @@ from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
 from io import BytesIO
-import openpyxl
-from openpyxl.styles import Font, Alignment
+import xlsxwriter
 
 app = Flask(__name__)
 CORS(app)
 
-# Local template path (keep LSRA_TEMPLATE.xlsx in your repo root)
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
+# Logo path (must be in repo root and committed to GitHub)
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "ASHE_logo.jpg")
 
 @app.route("/")
 def index():
@@ -21,48 +20,74 @@ def generate_lsra():
         data = request.get_json(force=True)
         print("🔹 Incoming LSRA request:", data)
 
-        print("📂 Looking for template at:", TEMPLATE_PATH)
-        print("📂 Directory contents:", os.listdir(os.path.dirname(__file__)))
-
-        if not os.path.exists(TEMPLATE_PATH):
-            print("❌ Template not found at", TEMPLATE_PATH)
-            return jsonify({"error": "Template not found"}), 500
-
-        wb = openpyxl.load_workbook(TEMPLATE_PATH)
-        print("✅ Template loaded successfully")
-
-        ws = wb.active
-
-        # ---- Unmerge rows 15–19 so we can write safely ----
-        for row in range(15, 20):
-            for merged in list(ws.merged_cells.ranges):
-                if row >= merged.min_row and row <= merged.max_row:
-                    print(f"🔎 Unmerging cells: {str(merged)}")
-                    ws.unmerge_cells(str(merged))
-
-        # ---- Enable wrap text & align top ----
-        for row in range(15, 20):
-            ws[f"A{row}"].alignment = Alignment(wrap_text=True, vertical="top")
-
-        # ---- Fill rows 15–19 (labels + values in one cell) ----
-        ws["A15"] = f"Date: {data.get('dateOfInspection', '')}"
-        ws["A15"].font = Font(name="Calibri", size=11)
-
-        ws["A16"] = f"Location Address: {data.get('address', '')}"
-        ws["A16"].font = Font(name="Calibri", size=11)
-
-        ws["A17"] = "Action(s) Taken: Creation of Corrective Action Plan, notified engineering of deficiencies"
-        ws["A17"].font = Font(name="Calibri", size=11)
-
-        ws["A18"] = f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}"
-        ws["A18"].font = Font(name="Calibri", size=11)
-
-        ws["A19"] = "ILSM Required? YES"
-        ws["A19"].font = Font(name="Calibri", size=11)
-
-        # Save workbook into memory
+        # Prepare in-memory output
         output = BytesIO()
-        wb.save(output)
+
+        # Create a new workbook in memory
+        wb = xlsxwriter.Workbook(output, {'in_memory': True})
+        ws = wb.add_worksheet("LSRA")
+
+        # Define formats
+        bold = wb.add_format({'bold': True, 'font_name': 'Calibri', 'font_size': 11})
+        italic = wb.add_format({'italic': True, 'font_name': 'Calibri', 'font_size': 11})
+        normal = wb.add_format({'font_name': 'Calibri', 'font_size': 11})
+        wrap = wb.add_format({'text_wrap': True, 'font_name': 'Calibri', 'font_size': 11})
+
+        # Adjust column width
+        ws.set_column("A:A", 80, wrap)
+
+        # Insert ASHE logo if available
+        if os.path.exists(LOGO_PATH):
+            ws.insert_image("A1", LOGO_PATH, {"x_scale": 0.5, "y_scale": 0.5})
+            print("✅ ASHE logo inserted")
+        else:
+            print("⚠️ ASHE logo not found at", LOGO_PATH)
+
+        # Title row
+        ws.write("A3", "LIFE SAFETY RISK ASSESSMENT TOOL", bold)
+
+        # Row 15: Date
+        ws.write_rich_string(
+            14, 0,  # row 15 (zero-indexed)
+            bold, "Date: ",
+            italic, data.get("dateOfInspection", ""),
+            normal, ""
+        )
+
+        # Row 16: Location
+        ws.write_rich_string(
+            15, 0,
+            bold, "Location Address: ",
+            italic, data.get("address", ""),
+            normal, ""
+        )
+
+        # Row 17: Action(s) Taken
+        ws.write_rich_string(
+            16, 0,
+            bold, "Action(s) Taken: ",
+            italic, "Creation of Corrective Action Plan, notified engineering of deficiencies",
+            normal, ""
+        )
+
+        # Row 18: Inspector
+        ws.write_rich_string(
+            17, 0,
+            bold, "Person Completing Life Safety Risk Matrix: ",
+            italic, data.get("inspector", ""),
+            normal, ""
+        )
+
+        # Row 19: ILSM
+        ws.write_rich_string(
+            18, 0,
+            bold, "ILSM Required? ",
+            italic, "YES",
+            normal, ""
+        )
+
+        # Close workbook
+        wb.close()
         output.seek(0)
 
         # File naming convention
@@ -70,7 +95,7 @@ def generate_lsra():
         floor = data.get("floorName", "Floor").replace(" ", "_")
         filename = f"LSRA_{facility}_{floor}.xlsx"
 
-        # 🔎 Debug: confirm final file before sending
+        # Debug info
         print("📤 Preparing to send file:", filename)
         print("📦 File size in memory:", len(output.getvalue()), "bytes")
 
