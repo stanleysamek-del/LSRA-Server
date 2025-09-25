@@ -3,7 +3,7 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
-from openpyxl.styles import Font
+from openpyxl.styles import Font, Alignment
 
 app = Flask(__name__)
 CORS(app)
@@ -31,17 +31,20 @@ def generate_lsra():
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
         print("✅ Template loaded successfully")
 
-        # Pick the active worksheet
         ws = wb.active
 
-        # ---- Unmerge cells in rows 15–19 so we can safely write ----
+        # ---- Unmerge rows 15–19 so we can write safely ----
         for row in range(15, 20):
             for merged in list(ws.merged_cells.ranges):
                 if row >= merged.min_row and row <= merged.max_row:
                     print(f"🔎 Unmerging cells: {str(merged)}")
                     ws.unmerge_cells(str(merged))
 
-        # ---- Fill rows 15–19 with text ----
+        # ---- Enable wrap text & align top ----
+        for row in range(15, 20):
+            ws[f"A{row}"].alignment = Alignment(wrap_text=True, vertical="top")
+
+        # ---- Fill rows 15–19 (labels + values in one cell) ----
         ws["A15"] = f"Date: {data.get('dateOfInspection', '')}"
         ws["A15"].font = Font(name="Calibri", size=11)
 
