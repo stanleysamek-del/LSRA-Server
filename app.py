@@ -31,6 +31,8 @@ def generate_lsra():
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
         print("✅ Template loaded successfully")
 
+        ws = wb.active
+
         # Fill rows 15–19 with formatted text
         ws["A15"] = "Date:"
         ws["A15"].font = Font(bold=True, name="Calibri", size=11)
@@ -64,6 +66,10 @@ def generate_lsra():
         facility = data.get("facilityName", "Facility").replace(" ", "_")
         floor = data.get("floorName", "Floor").replace(" ", "_")
         filename = f"LSRA_{facility}_{floor}.xlsx"
+
+        # 🔎 Debug: confirm final filename before sending
+        print("📤 Preparing to send file:", filename)
+        print("📦 File size in memory:", len(output.getvalue()), "bytes")
 
         return send_file(
             output,
