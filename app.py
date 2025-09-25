@@ -31,31 +31,24 @@ def generate_lsra():
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
         print("✅ Template loaded successfully")
 
+        # Pick the active worksheet
         ws = wb.active
 
-        # Fill rows 15–19 with formatted text
-        ws["A15"] = "Date:"
-        ws["A15"].font = Font(bold=True, name="Calibri", size=11)
-        ws["B15"] = data.get("dateOfInspection", "")
-        ws["B15"].font = Font(italic=True, name="Calibri", size=11)
+        # ---- Fill rows 15–19 with formatted text (safe for merged cells) ----
+        ws["A15"] = f"Date: {data.get('dateOfInspection', '')}"
+        ws["A15"].font = Font(name="Calibri", size=11)
 
-        ws["A16"] = "Location Address:"
-        ws["A16"].font = Font(bold=True, name="Calibri", size=11)
-        ws["B16"] = data.get("address", "")
-        ws["B16"].font = Font(italic=True, name="Calibri", size=11)
+        ws["A16"] = f"Location Address: {data.get('address', '')}"
+        ws["A16"].font = Font(name="Calibri", size=11)
 
-        ws["A17"] = "Action(s) Taken:"
-        ws["A17"].font = Font(bold=True, name="Calibri", size=11)
-        ws["B17"] = "Creation of Corrective Action Plan, notified engineering of deficiencies"
-        ws["B17"].font = Font(italic=True, name="Calibri", size=11)
+        ws["A17"] = "Action(s) Taken: Creation of Corrective Action Plan, notified engineering of deficiencies"
+        ws["A17"].font = Font(name="Calibri", size=11)
 
-        ws["A18"] = "Person Completing Life Safety Risk Matrix:"
-        ws["A18"].font = Font(bold=True, name="Calibri", size=11)
-        ws["B18"] = data.get("inspector", "")
-        ws["B18"].font = Font(italic=True, name="Calibri", size=11)
+        ws["A18"] = f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}"
+        ws["A18"].font = Font(name="Calibri", size=11)
 
         ws["A19"] = "ILSM Required? YES"
-        ws["A19"].font = Font(bold=True, name="Calibri", size=11)
+        ws["A19"].font = Font(name="Calibri", size=11)
 
         # Save workbook into memory
         output = BytesIO()
@@ -67,7 +60,7 @@ def generate_lsra():
         floor = data.get("floorName", "Floor").replace(" ", "_")
         filename = f"LSRA_{facility}_{floor}.xlsx"
 
-        # 🔎 Debug: confirm final filename before sending
+        # 🔎 Debug: confirm final file before sending
         print("📤 Preparing to send file:", filename)
         print("📦 File size in memory:", len(output.getvalue()), "bytes")
 
