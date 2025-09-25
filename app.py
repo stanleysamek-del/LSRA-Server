@@ -25,10 +25,11 @@ def generate_lsra():
         print("📂 Directory contents:", os.listdir(os.path.dirname(__file__)))
 
         if not os.path.exists(TEMPLATE_PATH):
+            print("❌ Template not found at", TEMPLATE_PATH)
             return jsonify({"error": "Template not found"}), 500
 
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
-        ws = wb.active
+        print("✅ Template loaded successfully")
 
         # Fill rows 15–19 with formatted text
         ws["A15"] = "Date:"
