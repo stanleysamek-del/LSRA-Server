@@ -19,14 +19,18 @@ def generate_lsra():
         data = request.get_json(force=True)
         print("🔹 Incoming LSRA request:", data)
 
-        # Load template
-        if not os.path.exists(TEMPLATE_PATH):
-            return jsonify({"error": "Template not found"}), 500
+        # --- Always fetch LSRA template from Wix ---
+        import requests
+        from io import BytesIO
 
-        wb = openpyxl.load_workbook(TEMPLATE_PATH)
+        TEMPLATE_URL = "https://fd9e47be-8bae-4028-9abb-e122237a79d5.usrfiles.com/ugd/fd9e47_c53aa7592925425dbb3e70ec9f45a74d.xlsx"
+
+        resp = requests.get(TEMPLATE_URL)
+        resp.raise_for_status()
+        wb = openpyxl.load_workbook(BytesIO(resp.content))
         ws = wb.active
 
-        # Example: write into row 15 merged block (A15:K19)
+        # --- Write data into merged block A15:K19 ---
         ws["A15"] = (
             f"Date: {data.get('dateOfInspection', '')}\n"
             f"Location Address: {data.get('address', '')}\n"
@@ -36,24 +40,28 @@ def generate_lsra():
             "ILSM Required? YES"
         )
 
-        # Save into memory
-        output = io.BytesIO()
+        # --- Build filename ---
+        facility = data.get("facilityName", "UnknownFacility")
+        floor = data.get("floorName", "UnknownFloor")
+        safe_facility = facility.replace(" ", "_")
+        safe_floor = floor.replace(" ", "_")
+        file_name = f"LSRA - {safe_facility} - {safe_floor}.xlsx"
+
+        # --- Save to memory ---
+        from io import BytesIO
+        output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        # Build filename
-        safe_facility = data.get("facilityName", "Facility").replace(" ", "_")
-        safe_floor = data.get("floorName", "Floor").replace(" ", "_")
-        filename = f"LSRA_{safe_facility}_{safe_floor}.xlsx"
-
-        # ✅ Send as binary file
+        # --- Send as response ---
         return send_file(
             output,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             as_attachment=True,
-            download_name=filename,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            download_name=file_name
         )
 
     except Exception as e:
-        print("❌ Error:", e)
+        print("❌ LSRA generation failed:", str(e))
         return jsonify({"error": str(e)}), 500
+
