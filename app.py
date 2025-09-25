@@ -34,7 +34,14 @@ def generate_lsra():
         # Pick the active worksheet
         ws = wb.active
 
-        # ---- Fill rows 15–19 with formatted text (safe for merged cells) ----
+        # ---- Unmerge cells in rows 15–19 so we can safely write ----
+        for row in range(15, 20):
+            for merged in list(ws.merged_cells.ranges):
+                if row >= merged.min_row and row <= merged.max_row:
+                    print(f"🔎 Unmerging cells: {str(merged)}")
+                    ws.unmerge_cells(str(merged))
+
+        # ---- Fill rows 15–19 with text ----
         ws["A15"] = f"Date: {data.get('dateOfInspection', '')}"
         ws["A15"].font = Font(name="Calibri", size=11)
 
