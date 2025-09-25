@@ -1,7 +1,6 @@
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 import os
-import requests
 from io import BytesIO
 import openpyxl
 from openpyxl.styles import Font
@@ -9,8 +8,8 @@ from openpyxl.styles import Font
 app = Flask(__name__)
 CORS(app)
 
-# Template URL (hosted XLSX)
-TEMPLATE_URL = "https://fd9e47be-8bae-4028-9abb-e122237a79d5.usrfiles.com/ugd/fd9e47_c53aa7592925425dbb3e70ec9f45a74d.xlsx"
+# Local template path (keep LSRA_TEMPLATE.xlsx in your repo root)
+TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
 
 @app.route("/")
 def index():
@@ -22,38 +21,34 @@ def generate_lsra():
         data = request.get_json(force=True)
         print("🔹 Incoming LSRA request:", data)
 
-        # Download template
-        resp = requests.get(TEMPLATE_URL)
-        resp.raise_for_status()
-        wb = openpyxl.load_workbook(BytesIO(resp.content))
+        # Load workbook from local file
+        if not os.path.exists(TEMPLATE_PATH):
+            return jsonify({"error": "Template not found"}), 500
+
+        wb = openpyxl.load_workbook(TEMPLATE_PATH)
         ws = wb.active
 
         # Fill rows 15–19 with formatted text
-        # Row 15 - Date
         ws["A15"] = "Date:"
         ws["A15"].font = Font(bold=True, name="Calibri", size=11)
         ws["B15"] = data.get("dateOfInspection", "")
         ws["B15"].font = Font(italic=True, name="Calibri", size=11)
 
-        # Row 16 - Location
         ws["A16"] = "Location Address:"
         ws["A16"].font = Font(bold=True, name="Calibri", size=11)
         ws["B16"] = data.get("address", "")
         ws["B16"].font = Font(italic=True, name="Calibri", size=11)
 
-        # Row 17 - Actions
         ws["A17"] = "Action(s) Taken:"
         ws["A17"].font = Font(bold=True, name="Calibri", size=11)
         ws["B17"] = "Creation of Corrective Action Plan, notified engineering of deficiencies"
         ws["B17"].font = Font(italic=True, name="Calibri", size=11)
 
-        # Row 18 - Inspector
         ws["A18"] = "Person Completing Life Safety Risk Matrix:"
         ws["A18"].font = Font(bold=True, name="Calibri", size=11)
         ws["B18"] = data.get("inspector", "")
         ws["B18"].font = Font(italic=True, name="Calibri", size=11)
 
-        # Row 19 - ILSM
         ws["A19"] = "ILSM Required? YES"
         ws["A19"].font = Font(bold=True, name="Calibri", size=11)
 
@@ -77,7 +72,6 @@ def generate_lsra():
     except Exception as e:
         print("❌ LSRA generation failed:", e)
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
