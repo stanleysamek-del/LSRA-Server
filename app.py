@@ -1,8 +1,11 @@
 from flask import Flask, request, send_file, jsonify
+from flask_cors import CORS
 import io
 import openpyxl
+import os
 
 app = Flask(__name__)
+CORS(app)  # ✅ Allow all origins
 
 @app.route("/")
 def index():
@@ -15,13 +18,10 @@ def index():
 @app.route("/generate", methods=["POST"])
 def generate_lsra():
     data = request.get_json(force=True)
-    print("🔹 Incoming request:", data)
+    print("🔹 Incoming LSRA request:", data)
 
-    # Minimal test: just echo data back
+    # Minimal echo back (for testing)
     return jsonify({
         "ok": True,
         "received": data
     })
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
