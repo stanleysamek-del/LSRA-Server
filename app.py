@@ -8,6 +8,7 @@ from openpyxl.styles import Font
 app = Flask(__name__)
 CORS(app)
 
+# Path to your new clean template in the repo
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
 
 @app.route("/")
@@ -23,11 +24,11 @@ def generate_lsra():
         if not os.path.exists(TEMPLATE_PATH):
             return jsonify({"error": "Template not found"}), 500
 
-        # Load workbook
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
-        ws = wb["Tool"]  # assuming your tab is named "Tool"
+        ws = wb["Tool"]  # assuming your main sheet is named Tool
 
-        # Inject extracted data at bottom cells
+        # ---- Write extracted data into the correct cells ----
+        # Adjust these cell refs to match your new clean template
         ws["B21"] = data.get("dateOfInspection", "")
         ws["B21"].font = Font(name="Calibri", size=11, italic=True)
 
@@ -43,7 +44,7 @@ def generate_lsra():
         ws["B25"] = "YES"
         ws["B25"].font = Font(name="Calibri", size=11, bold=True)
 
-        # Save to memory
+        # ---- Save to memory ----
         output = BytesIO()
         wb.save(output)
         output.seek(0)
