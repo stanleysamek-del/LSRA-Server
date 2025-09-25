@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
+from openpyxl.styles import Font
 
 app = Flask(__name__)
 CORS(app)
@@ -23,21 +24,32 @@ def generate_lsra():
             return jsonify({"error": "Template not found"}), 500
 
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
-        ws = wb["Tool"]
+        ws = wb["Tool"]  # make sure your sheet is named "Tool"
 
-        # --- DEBUG: list all merged ranges ---
-        print("🔎 Listing merged ranges in 'Tool' sheet:")
-        for rng in ws.merged_cells.ranges:
-            print("   ", rng.coord)
+        # ✅ Write values into column B (so labels in A remain intact)
+        ws["B20"] = data.get("dateOfInspection", "")
+        ws["B20"].font = Font(name="Calibri", size=11, italic=True)
 
-        # Don’t try writing yet, just return the template back
+        ws["B22"] = data.get("address", "")
+        ws["B22"].font = Font(name="Calibri", size=11, italic=True)
+
+        ws["B23"] = "Creation of Corrective Action Plan, ILSM created, notified engineering."
+        ws["B23"].font = Font(name="Calibri", size=11, italic=True)
+
+        ws["B24"] = data.get("inspector", "")
+        ws["B24"].font = Font(name="Calibri", size=11, italic=True)
+
+        ws["B25"] = "YES"
+        ws["B25"].font = Font(name="Calibri", size=11, bold=True)
+
+        # Save to memory
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
         facility = data.get("facilityName", "Facility").replace(" ", "_")
         floor = data.get("floorName", "Floor").replace(" ", "_")
-        filename = f"DEBUG_MergedRanges_{facility}_{floor}.xlsx"
+        filename = f"LSRA_{facility}_{floor}.xlsx"
 
         return send_file(
             output,
