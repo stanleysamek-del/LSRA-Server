@@ -23,74 +23,64 @@ def generate_lsra():
         # Prepare in-memory output
         output = BytesIO()
 
-        # Create workbook in memory
+        # Create a new workbook in memory
         wb = xlsxwriter.Workbook(output, {'in_memory': True})
         ws = wb.add_worksheet("LSRA")
 
-        # === Formats ===
+        # Define formats
         bold = wb.add_format({'bold': True, 'font_name': 'Calibri', 'font_size': 11})
         italic = wb.add_format({'italic': True, 'font_name': 'Calibri', 'font_size': 11})
         normal = wb.add_format({'font_name': 'Calibri', 'font_size': 11})
-        title_fmt = wb.add_format({'bold': True, 'align': 'center', 'valign': 'vcenter',
-                                   'font_name': 'Calibri', 'font_size': 14, 'border': 1})
-        wrap = wb.add_format({'text_wrap': True, 'font_name': 'Calibri', 'font_size': 11, 'valign': 'top'})
-        bordered = wb.add_format({'font_name': 'Calibri', 'font_size': 11,
-                                  'border': 1, 'valign': 'top', 'text_wrap': True})
+        wrap = wb.add_format({'text_wrap': True, 'font_name': 'Calibri', 'font_size': 11})
 
-        # Adjust columns
-        ws.set_column("A:A", 50, wrap)  # main content
-        ws.set_column("B:D", 20, wrap)  # optional extra columns
+        # Adjust column width
+        ws.set_column("A:A", 80, wrap)
 
-        # === Header Section ===
+        # Insert ASHE logo if available
         if os.path.exists(LOGO_PATH):
             ws.insert_image("A1", LOGO_PATH, {"x_scale": 0.5, "y_scale": 0.5})
             print("✅ ASHE logo inserted")
         else:
             print("⚠️ ASHE logo not found at", LOGO_PATH)
 
-        ws.merge_range("A3:D3", "LIFE SAFETY RISK ASSESSMENT TOOL", title_fmt)
+        # Title row
+        ws.write("A3", "LIFE SAFETY RISK ASSESSMENT TOOL", bold)
 
-        # === Table Gridlines Example ===
-        # Draw a bordered box for rows 15–19 to resemble template
-        for row in range(14, 19):  # Excel rows 15–19 (0-indexed)
-            ws.write(row, 0, "", bordered)
-            ws.write(row, 1, "", bordered)
-            ws.write(row, 2, "", bordered)
-            ws.write(row, 3, "", bordered)
-
-        # === Insert Content with Rich Formatting ===
-        start_row = 14  # Row 15 in Excel (zero-indexed)
-
+        # Row 15: Date
         ws.write_rich_string(
-            start_row, 0,
+            14, 0,  # row 15 (zero-indexed)
             bold, "Date: ",
             italic, data.get("dateOfInspection", ""),
             normal, ""
         )
 
+        # Row 16: Location
         ws.write_rich_string(
-            start_row + 1, 0,
+            15, 0,
             bold, "Location Address: ",
             italic, data.get("address", ""),
             normal, ""
         )
 
+        # Row 17: Action(s) Taken
         ws.write_rich_string(
-            start_row + 2, 0,
+            16, 0,
             bold, "Action(s) Taken: ",
             italic, "Creation of Corrective Action Plan, notified engineering of deficiencies",
             normal, ""
         )
 
+        # Row 18: Inspector
         ws.write_rich_string(
-            start_row + 3, 0,
+            17, 0,
             bold, "Person Completing Life Safety Risk Matrix: ",
             italic, data.get("inspector", ""),
             normal, ""
         )
 
+        # Row 19: ILSM
         ws.write_rich_string(
-            start_row + 4, 0,
+            18, 0,
             bold, "ILSM Required? ",
             italic, "YES",
             normal, ""
