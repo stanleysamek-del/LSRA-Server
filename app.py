@@ -3,12 +3,10 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
-from openpyxl.styles import Font
 
 app = Flask(__name__)
 CORS(app)
 
-# Path to your new clean template in the repo
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
 
 @app.route("/")
@@ -25,33 +23,21 @@ def generate_lsra():
             return jsonify({"error": "Template not found"}), 500
 
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
-        ws = wb["Tool"]  # assuming your main sheet is named Tool
+        ws = wb["Tool"]
 
-        # ---- Write extracted data into the correct cells ----
-        # Adjust these cell refs to match your new clean template
-        ws["B21"] = data.get("dateOfInspection", "")
-        ws["B21"].font = Font(name="Calibri", size=11, italic=True)
+        # --- DEBUG: list all merged ranges ---
+        print("🔎 Listing merged ranges in 'Tool' sheet:")
+        for rng in ws.merged_cells.ranges:
+            print("   ", rng.coord)
 
-        ws["B22"] = data.get("address", "")
-        ws["B22"].font = Font(name="Calibri", size=11, italic=True)
-
-        ws["B23"] = "Creation of Corrective Action Plan, ILSM created, notified engineering."
-        ws["B23"].font = Font(name="Calibri", size=11, italic=True)
-
-        ws["B24"] = data.get("inspector", "")
-        ws["B24"].font = Font(name="Calibri", size=11, italic=True)
-
-        ws["B25"] = "YES"
-        ws["B25"].font = Font(name="Calibri", size=11, bold=True)
-
-        # ---- Save to memory ----
+        # Don’t try writing yet, just return the template back
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
         facility = data.get("facilityName", "Facility").replace(" ", "_")
         floor = data.get("floorName", "Floor").replace(" ", "_")
-        filename = f"LSRA_{facility}_{floor}.xlsx"
+        filename = f"DEBUG_MergedRanges_{facility}_{floor}.xlsx"
 
         return send_file(
             output,
@@ -65,4 +51,5 @@ def generate_lsra():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
