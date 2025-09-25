@@ -27,7 +27,7 @@ def generate_lsra():
         # ---------------- Tool Tab ----------------
         ws = wb.add_worksheet("Tool")
 
-        # Header with logo (left) + title (center)
+        # Header with logo + title
         if os.path.exists(LOGO_PATH):
             ws.set_header('&L&G&C&"Calibri,Bold"&14LIFE SAFETY RISK ASSESSMENT TOOL',
                           {'image_left': LOGO_PATH})
@@ -103,19 +103,110 @@ def generate_lsra():
             ws.write(i, 0, label, bold)
             ws.write(i, 1, value, italic)
 
-        # Fit to 1 page
         ws.fit_to_pages(1, 1)
 
         # ---------------- Instructions Tab ----------------
         inst = wb.add_worksheet("Instructions")
         inst.set_column("A:A", 100)
-        inst.write("A1", "Instructions for Life Safety Risk Assessment Tool", bold)
-        inst.write("A3", "1. Use the Tool tab to complete the Life Safety Risk Assessment.")
-        inst.write("A4", "2. Fill in the Date, Location, Actions Taken, Inspector, and ILSM status.")
-        inst.write("A5", "3. The Risk Tolerance matrix helps determine severity and impact.")
-        inst.write("A6", "4. Save the generated file as part of your compliance documentation.")
-        inst.write("A7", "5. For questions, contact the Safety/Compliance department.")
+        inst.set_row(0, 40)
 
+        # Logo
+        if os.path.exists(LOGO_PATH):
+            inst.insert_image("A1", LOGO_PATH, {"x_scale": 0.5, "y_scale": 0.5})
+
+        # Title
+        inst.write("C2", "Life Safety Risk Assessment Tool", wb.add_format({
+            'bold': True, 'font_name': 'Calibri', 'font_size': 16, 'align': 'center'
+        }))
+
+        # Overview
+        overview = [
+            "Brief Overview of the Tool & How to Use It",
+            "The Life Safety Risk Assessment Tool determines the risk tolerance of a life safety deficiency. "
+            "The tool is used by determining the severity of occurrence and the impact of the deficiency.",
+            "Severity of Occurrence is determined on the severity of the deficiency and the probability that the occurrence "
+            "will have based on the following four categories:",
+            "• Category 1: Life safety deficiency likely to cause major injury or death",
+            "• Category 2: Life safety deficiency likely to cause minor injury",
+            "• Category 3: Life safety deficiency not likely to cause injury",
+            "• Category 4: Life safety deficiency likely has minimal impact to safety",
+            "The Impact of Deficiency is determined on the extent of the deficiency based on the following four impacts:",
+            "• Impact 1: Facility Wide – the deficiency impacts the entire facility",
+            "• Impact 2: Multiple Units/Floors – the deficiency impacts more than one smoke compartment and/or multiple floors of the facility",
+            "• Impact 3: Local/Single Unit – the deficiency only impacts a single smoke compartment or an area within a single smoke compartment",
+            "• Impact 4: Short Duration – the correction of the deficiency can be performed during the shift that the deficiency was identified",
+            "By plotting these two factors in the LSRA Tool an organization can determine the risk tolerance of the deficiency. "
+            "The risk tolerance is dependent on the following tolerances:",
+            "• High – The deficiency needs specific remediation actions as outlined in LS.01.02.01 EPs 2-15.",
+            "• Medium – The deficiency needs remedial action as outlined in LS.01.02.01 EPs 2-15.",
+            "• Low – The deficiency poses an acceptable risk and remedial actions are discretionary.",
+            "• Short Duration – The deficiency can be corrected within the shift it has been identified in and no ILSM action is required."
+        ]
+        row = 4
+        for line in overview:
+            fmt = bold if line.startswith("Brief") else wb.add_format({'font_name': 'Calibri', 'font_size': 11, 'text_wrap': True})
+            inst.write(f"A{row}", line, fmt)
+            row += 1
+
+        # Deficiency Examples table
+        inst.write("U10", "Deficiency Example", bold)
+        inst.write("Y10", "Impact", bold)
+        inst.write("Z10", "Severity", bold)
+        inst.write("AA10", "Tolerance", bold)
+
+        examples = [
+            ("Fire/Smoke Doors", "", "", ""),
+            ("Door latching problem not immediately repairable", 3, 4, "Low"),
+            ("Hardware not fire rated on doors throughout stairwell", 2, 4, "Low"),
+            ("Excessive gap between door leafs", 4, 3, "No ILSM"),
+            ("Fire Alarms", "", "", ""),
+            ("Pull station mounted too high", 3, 3, "Medium"),
+            ("Smoke detector missing above fire alarm panel", 3, 2, "Medium"),
+            ("Damaged devices/appliances across smoke zones", 2, 2, "High"),
+            ("Sprinkler System", "", "", ""),
+            ("Missing escutcheon plate in multiple smoke zones", 2, 3, "Medium"),
+            ("Storage within 18\" of sprinkler head deflector", 4, 4, "No ILSM"),
+            ("Items attached or supported by sprinkler system throughout facility", 1, 2, "High"),
+            ("Fire/Smoke Barriers", "", "", ""),
+            ("Improperly protected vertical opening", 2, 1, "High"),
+            ("Unprotected penetrations in fire or smoke barriers", 2, 2, "High"),
+            ("Hazardous area not properly protected", 2, 2, "High"),
+            ("Means of Egress", "", "", ""),
+            ("Storage within exit enclosure", 2, 2, "High"),
+            ("Blocking of an exit due to construction activities", 3, 1, "High"),
+            ("Excessive travel distance to an approved exit", 3, 1, "High"),
+        ]
+
+        row = 11
+        for ex in examples:
+            inst.write(f"U{row}", ex[0], wb.add_format({'font_name': 'Calibri', 'font_size': 11, 'text_wrap': True}))
+            if ex[1] != "":
+                inst.write(f"Y{row}", ex[1], wrap_center)
+                inst.write(f"Z{row}", ex[2], wrap_center)
+                inst.write(f"AA{row}", ex[3], wrap_center)
+            row += 1
+
+        # Closing note
+        inst.write("U30", "Of course these examples are based on the knowledge of those identifying the deficiency and it is highly "
+                           "recommended that when possible the assessment be performed by a multidisciplinary group such as the "
+                           "environment of care or safety committee, but due to the nature of these deficiencies sometimes this will "
+                           "not be possible. Making sure that the tool, and its use, is part of the organization’s ILSM policy is also important.",
+                   wb.add_format({'font_name': 'Calibri', 'font_size': 11, 'text_wrap': True}))
+
+        # Footer disclaimer
+        inst.write("A60", "The ASHE advocacy team works to monitor and fight the many overlapping codes and standards relating "
+                          "the health care physical environment allowing health care facilities to optimize their physical environment "
+                          "and focus more of their valuable resources on patient care.", wb.add_format({'font_name': 'Calibri', 'font_size': 8, 'italic': True, 'text_wrap': True}))
+        inst.write("A63", "© The American Society for Healthcare Engineering (ASHE) of the American Hospital Association\n"
+                          "155 North Wacker Drive, Suite 400 | Chicago, IL 60606 | Phone: 312-422-3800 | Email: ashe@aha.org | Web: www.ashe.org\n\n"
+                          "Disclaimer: This document is provided by ASHE as a service to its members. The information provided may not apply "
+                          "to a reader’s specific situation and is not a substitute for application of the reader’s own independent judgment "
+                          "or the advice of a competent professional. ASHE does not make any guaranty or warranty as to the accuracy or completeness "
+                          "of any information contained in this document. ASHE and the authors disclaim liability for personal injury, property damage, "
+                          "or other damages of any kind, whether special, indirect, consequential, or compensatory, that may result from the use of or "
+                          "reliance on this document.", wb.add_format({'font_name': 'Calibri', 'font_size': 8, 'text_wrap': True}))
+
+        # Close workbook
         wb.close()
         output.seek(0)
 
