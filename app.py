@@ -1,146 +1,73 @@
-
+from flask import Flask, request, send_file, jsonify
 import io
-import zipfile
-import requests
-from fastapi import FastAPI, Response
-from fastapi.middleware.cors import CORSMiddleware
-import xml.etree.ElementTree as ET
+import openpyxl
+from datetime import datetime
+import os
 
-# Namespaces for Excel XML
-NS = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-ET.register_namespace("", NS["a"])  # default namespace
+app = Flask(__name__)
 
-TEMPLATE_URL = "https://fd9e47be-8bae-4028-9abb-e122237a79d5.usrfiles.com/ugd/fd9e47_c53aa7592925425dbb3e70ec9f45a74d.xlsx"
+# Path to LSRA template (make sure LSRA_TEMPLATE.xlsx is in the same repo or set full path)
+TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
 
-app = FastAPI(title="LSRA Generator (Logo-Preserving)")
+@app.route("/")
+def index():
+    return jsonify({"status": "ok", "message": "LSRA server running"})
 
-# CORS: in production you can restrict allow_origins to your Wix site
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.route("/generate", methods=["POST"])
+def generate_lsra():
+    try:
+        data = request.get_json(force=True)
 
-def _ensure_row(root, r_str: str):
-    """Ensure a <row r='15'> exists and return it."""
-    sheetData = root.find("a:sheetData", NS)
-    if sheetData is None:
-        sheetData = ET.SubElement(root, f"{{{NS['a']}}}sheetData")
-    # Try find row
-    for row in sheetData.findall("a:row", NS):
-        if row.get("r") == r_str:
-            return row
-    # Not found: create in numeric order (append is fine for Excel)
-    row = ET.Element(f"{{{NS['a']}}}row", {"r": r_str})
-    sheetData.append(row)
-    return row
+        # Extract values from request body
+        date_val = data.get("dateOfInspection", "")
+        address_val = data.get("address", "")
+        inspector_val = data.get("inspector", "")
+        facility_name = data.get("facilityName", "Unknown")
+        floor_name = data.get("floorName", "")
 
-def _find_cell(row_elem, cell_ref: str):
-    """Find a cell <c r='A15'> inside the given row; return None if missing."""
-    for c in row_elem.findall("a:c", NS):
-        if c.get("r") == cell_ref:
-            return c
-    return None
+        # Debug logging
+        print("🔹 Incoming LSRA request:", data)
 
-def _make_run(text: str, bold: bool=False, italic: bool=False):
-    """Create an <r> run with optional bold/italic, Calibri 11, and text."""
-    r = ET.Element(f"{{{NS['a']}}}r")
-    rPr = ET.SubElement(r, f"{{{NS['a']}}}rPr")
-    # Font props
-    if bold:
-        ET.SubElement(rPr, f"{{{NS['a']}}}b")
-    if italic:
-        ET.SubElement(rPr, f"{{{NS['a']}}}i")
-    ET.SubElement(rPr, f"{{{NS['a']}}}rFont", {"val": "Calibri"})
-    ET.SubElement(rPr, f"{{{NS['a']}}}sz", {"val": "11"})
-    ET.SubElement(rPr, f"{{{NS['a']}}}family", {"val": "2"})
-    # Text (preserve spaces/newlines)
-    t = ET.SubElement(r, f"{{{NS['a']}}}t")
-    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-    t.text = text
-    return r
+        # Load workbook template
+        if not os.path.exists(TEMPLATE_PATH):
+            return jsonify({"error": "Template not found"}), 500
 
-def build_inline_string(date_val: str, addr_val: str, inspector_val: str):
-    """Return <is> element containing rich text runs for A15 with line breaks."""
-    is_elem = ET.Element(f"{{{NS['a']}}}is")
-    # Date:
-    is_elem.append(_make_run("Date: ", bold=True))
-    is_elem.append(_make_run((date_val or "") + "\n", italic=True))
-    # Address:
-    is_elem.append(_make_run("Location Address: ", bold=True))
-    is_elem.append(_make_run((addr_val or "") + "\n", italic=True))
-    # Actions:
-    is_elem.append(_make_run("Action(s) Taken: ", bold=True))
-    is_elem.append(_make_run("Creation of Corrective Action Plan, notified engineering of deficiencies\n", italic=True))
-    # Person:
-    is_elem.append(_make_run("Person Completing Life Safety Risk Matrix: ", bold=True))
-    is_elem.append(_make_run((inspector_val or "") + "\n", italic=True))
-    # ILSM:
-    is_elem.append(_make_run("ILSM Required? YES", bold=True))
-    return is_elem
+        wb = openpyxl.load_workbook(TEMPLATE_PATH)
+        ws = wb.active
 
-def modify_xlsx_bytes(template_bytes: bytes, date_val: str, addr_val: str, inspector_val: str) -> bytes:
-    """
-    Modify only xl/worksheets/sheet1.xml cell A15 to an inline rich text string.
-    All other files in the XLSX zip are copied verbatim to preserve logos/formatting.
-    """
-    in_mem = io.BytesIO(template_bytes)
-    out_mem = io.BytesIO()
-    with zipfile.ZipFile(in_mem, "r") as zin, zipfile.ZipFile(out_mem, "w", zipfile.ZIP_DEFLATED) as zout:
-        # Read worksheet XML
-        sheet_name = "xl/worksheets/sheet1.xml"
-        xml = zin.read(sheet_name)
-        root = ET.fromstring(xml)
+        # Row 15:K19 — simplified as merged into A15
+        # (Adjust if your template has specific merged ranges)
+        ws["A15"] = (
+            f"Date: {date_val}\n"
+            f"Location Address: {address_val}\n"
+            "Action(s) Taken: Creation of Corrective Action Plan, "
+            "notified engineering of deficiencies\n"
+            f"Person Completing Life Safety Risk Matrix: {inspector_val}\n"
+            "ILSM Required? YES"
+        )
 
-        # Ensure row 15 and cell A15 exist
-        row15 = _ensure_row(root, "15")
-        cell = _find_cell(row15, "A15")
-        if cell is None:
-            cell = ET.SubElement(row15, f"{{{NS['a']}}}c", {"r": "A15"})
+        # Build filename
+        safe_facility = facility_name.replace(" ", "_")
+        safe_floor = floor_name.replace(" ", "_")
+        file_name = f"LSRA - {safe_facility} - {safe_floor}.xlsx"
 
-        # Set inline string type and content
-        cell.set("t", "inlineStr")
-        # Remove existing v/is children
-        for child in list(cell):
-            cell.remove(child)
-        cell.append(build_inline_string(date_val, addr_val, inspector_val))
+        # Save workbook into memory
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
 
-        # Write back modified worksheet
-        new_xml = ET.tostring(root, encoding="utf-8", xml_declaration=True)
-        # Copy all entries; replace sheet1.xml with modified bytes
-        for item in zin.infolist():
-            data = new_xml if item.filename == sheet_name else zin.read(item.filename)
-            zout.writestr(item, data)
-    return out_mem.getvalue()
+        # Return file as download
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=file_name,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
 
-@app.post("/generate-lsra")
-def generate_lsra(payload: dict):
-    """
-    Payload JSON:
-    {{
-      "dateOfInspection": "...",
-      "address": "...",
-      "inspector": "..."
-    }}
-    """
-    date_val = payload.get("dateOfInspection", "")
-    addr_val = payload.get("address", "")
-    inspector_val = payload.get("inspector", "")
+    except Exception as e:
+        print("❌ Error in /generate:", str(e))
+        return jsonify({"error": str(e)}), 500
 
-    # Download template from Wix-hosted URL
-    r = requests.get(TEMPLATE_URL, timeout=20)
-    r.raise_for_status()
-
-    # Modify minimally (only A15 as inline rich text)
-    out_bytes = modify_xlsx_bytes(r.content, date_val, addr_val, inspector_val)
-
-    return Response(
-        content=out_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": 'attachment; filename="LSRA_Report_Generated.xlsx"'}
-    )
-
-@app.get("/")
-def root():
-    return {"ok": True, "service": "LSRA Generator", "template_source": TEMPLATE_URL}
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
