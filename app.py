@@ -3,15 +3,20 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side
-from openpyxl.drawing.image import Image as XLImage
+from openpyxl.styles import Font, Alignment
 
 app = Flask(__name__)
 CORS(app)
 
-# Paths
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
-LOGO_PATH     = os.path.join(os.path.dirname(__file__), "ASHE_logo.jpg")  # correct file extension
+# Find whichever template filename you committed
+HERE = os.path.dirname(__file__)
+TEMPLATE_CANDIDATES = ["LSRA_TEMPLATE.xlsx", "LSRA - TEMPLATE.xlsx"]
+TEMPLATE_PATH = None
+for name in TEMPLATE_CANDIDATES:
+    p = os.path.join(HERE, name)
+    if os.path.exists(p):
+        TEMPLATE_PATH = p
+        break
 
 @app.route("/")
 def index():
@@ -23,42 +28,36 @@ def generate_lsra():
         data = request.get_json(force=True)
         print("🔹 Incoming LSRA request:", data)
 
-        if not os.path.exists(TEMPLATE_PATH):
+        if not TEMPLATE_PATH or not os.path.exists(TEMPLATE_PATH):
             return jsonify({"error": "Template not found"}), 500
 
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
-        ws = wb.active
-        print("✅ Template loaded successfully")
+        # Your template has two sheets; the main one is typically named "Tool" or "LSRA Tool"
+        # Use the sheet named "Tool" if present; otherwise use the active sheet.
+        ws = wb["Tool"] if "Tool" in wb.sheetnames else wb.active
+        print("✅ Template loaded; sheets:", wb.sheetnames)
 
-        # ---- Unmerge any merged cells overlapping rows 15–19 ----
+        # ---------- Fix merged block that collides with A15:B19 ----------
+        # Your template merges A15:K20; writing to any cell in that range would crash unless we unmerge.
         for rng in list(ws.merged_cells.ranges):
             if rng.min_row <= 19 and rng.max_row >= 15:
-                print(f"🔎 Unmerging {str(rng)}")
+                print(f"🔎 Unmerging {str(rng)} (overlaps rows 15–19)")
                 ws.unmerge_cells(str(rng))
 
-        # ---- Insert logo if possible ----
+        # ---------- Column widths so footer values don’t overflow ----------
+        # Adjust just A and B; leave the matrix columns as-is.
         try:
-            if os.path.exists(LOGO_PATH):
-                img = XLImage(LOGO_PATH)
-                ws.add_image(img, "A1")
-                print("✅ ASHE logo placed at A1")
-            else:
-                print("⚠️ ASHE logo not found at", LOGO_PATH)
+            ws.column_dimensions["A"].width = 18
+            ws.column_dimensions["B"].width = 70
         except Exception as e:
-            print("⚠️ Could not insert logo:", e)
+            print("⚠️ Could not set column widths:", e)
 
-        # ---- Define styles ----
+        # ---------- Styles for footer ----------
         bold = Font(name="Calibri", size=11, bold=True)
         italic = Font(name="Calibri", size=11, italic=True)
-        align = Alignment(wrap_text=True, vertical="top")
-        border = Border(
-            left=Side(style="thin"),
-            right=Side(style="thin"),
-            top=Side(style="thin"),
-            bottom=Side(style="thin"),
-        )
+        wrap_top = Alignment(wrap_text=True, vertical="top")
 
-        # ---- Fill rows 15–19 (A=label, B=value) ----
+        # Footer rows (exactly like your template: labels in A, values in B, no borders)
         rows = [
             ("Date:", data.get("dateOfInspection", "")),
             ("Location Address:", data.get("address", "")),
@@ -68,20 +67,26 @@ def generate_lsra():
         ]
 
         start_row = 15
-        for i, (label, value) in enumerate(rows, start=start_row):
-            # Label cell
-            ws[f"A{i}"].value = label
-            ws[f"A{i}"].font = bold
-            ws[f"A{i}"].alignment = align
-            ws[f"A{i}"].border = border
+        for r, (label, value) in enumerate(rows, start=start_row):
+            a = ws[f"A{r}"]; b = ws[f"B{r}"]
+            a.value = label
+            a.font = bold
+            a.alignment = wrap_top
 
-            # Value cell
-            ws[f"B{i}"].value = value
-            ws[f"B{i}"].font = italic
-            ws[f"B{i}"].alignment = align
-            ws[f"B{i}"].border = border
+            b.value = value
+            b.font = italic
+            b.alignment = wrap_top
 
-        # ---- Save to memory ----
+        # Optional: set print area to keep one-page look (tweak to your exact template height/width)
+        try:
+            ws.print_area = "A1:K30"
+            ws.page_setup.fitToWidth = 1
+            ws.page_setup.fitToHeight = 1
+            ws.sheet_properties.pageSetUpPr.fitToPage = True
+        except Exception as e:
+            print("⚠️ Print area/page setup not applied:", e)
+
+        # ---------- Save and return ----------
         output = BytesIO()
         wb.save(output)
         output.seek(0)
@@ -90,14 +95,12 @@ def generate_lsra():
         floor = (data.get("floorName", "Floor") or "Floor").replace(" ", "_")
         filename = f"LSRA_{facility}_{floor}.xlsx"
 
-        print("📤 Preparing to send file:", filename)
-        print("📦 File size in memory:", len(output.getvalue()), "bytes")
-
+        print("📤 Sending:", filename, "| bytes:", len(output.getvalue()))
         return send_file(
             output,
             as_attachment=True,
             download_name=filename,
-            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
     except Exception as e:
