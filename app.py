@@ -21,7 +21,9 @@ def generate_lsra():
         data = request.get_json(force=True)
         print("🔹 Incoming LSRA request:", data)
 
-        # Load workbook from local file
+        print("📂 Looking for template at:", TEMPLATE_PATH)
+        print("📂 Directory contents:", os.listdir(os.path.dirname(__file__)))
+
         if not os.path.exists(TEMPLATE_PATH):
             return jsonify({"error": "Template not found"}), 500
 
