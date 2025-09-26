@@ -3,9 +3,8 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
-from openpyxl.styles import Alignment
+from openpyxl.styles import Font, Alignment
 from openpyxl.drawing.image import Image
-from openpyxl.cell.rich_text import CellRichText, TextBlock, InlineFont
 
 app = Flask(__name__)
 CORS(app)
@@ -40,26 +39,19 @@ def generate_lsra():
             except Exception as e:
                 print("⚠️ Logo insertion failed:", e)
 
-        # Rich text content for A15
-        rt = CellRichText()
-        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Date: "))
-        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100), f"{data.get('dateOfInspection','')}\n"))
+        # Build plain text block for A15
+        content = (
+            f"Date: {data.get('dateOfInspection', '')}\n"
+            f"Location Address: {data.get('address', '')}\n"
+            f"Action(s) Taken: Creation of Corrective Action Plan, ILSM created, notified engineering.\n"
+            f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}\n"
+            f"ILSM Required? YES"
+        )
 
-        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Location Address: "))
-        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100), f"{data.get('address','')}\n"))
-
-        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Action(s) Taken: "))
-        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100),
-            "Creation of Corrective Action Plan, ILSM created, notified engineering.\n"))
-
-        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Person Completing Life Safety Risk Matrix: "))
-        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100), f"{data.get('inspector','')}\n"))
-
-        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "ILSM Required? "))
-        rt.append(TextBlock(InlineFont(rFont="Calibri", sz=1100), "YES"))
-
-        ws["A15"].rich_text = rt
+        # Write everything into A15
+        ws["A15"] = content
         ws["A15"].alignment = Alignment(wrap_text=True, vertical="top")
+        ws["A15"].font = Font(name="Calibri", size=11)
 
         # Save workbook in memory
         output = BytesIO()
