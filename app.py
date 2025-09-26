@@ -3,9 +3,9 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
-from openpyxl.styles import Font, Alignment
+from openpyxl.styles import Alignment
 from openpyxl.drawing.image import Image
-from openpyxl.cell.rich_text import CellRichText, TextBlock
+from openpyxl.cell.rich_text import CellRichText, TextBlock, InlineFont
 
 app = Flask(__name__)
 CORS(app)
@@ -42,21 +42,21 @@ def generate_lsra():
 
         # Rich text content for A15
         rt = CellRichText()
-        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Date: "))
-        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11), f"{data.get('dateOfInspection','')}\n"))
+        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Date: "))
+        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100), f"{data.get('dateOfInspection','')}\n"))
 
-        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Location Address: "))
-        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11), f"{data.get('address','')}\n"))
+        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Location Address: "))
+        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100), f"{data.get('address','')}\n"))
 
-        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Action(s) Taken: "))
-        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11),
+        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Action(s) Taken: "))
+        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100),
             "Creation of Corrective Action Plan, ILSM created, notified engineering.\n"))
 
-        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Person Completing Life Safety Risk Matrix: "))
-        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11), f"{data.get('inspector','')}\n"))
+        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "Person Completing Life Safety Risk Matrix: "))
+        rt.append(TextBlock(InlineFont(i=True, rFont="Calibri", sz=1100), f"{data.get('inspector','')}\n"))
 
-        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "ILSM Required? "))
-        rt.append(TextBlock(Font(italic=False, name="Calibri", size=11), "YES"))
+        rt.append(TextBlock(InlineFont(b=True, rFont="Calibri", sz=1100), "ILSM Required? "))
+        rt.append(TextBlock(InlineFont(rFont="Calibri", sz=1100), "YES"))
 
         ws["A15"].rich_text = rt
         ws["A15"].alignment = Alignment(wrap_text=True, vertical="top")
