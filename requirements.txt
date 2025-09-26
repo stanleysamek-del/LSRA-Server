@@ -1,6 +1,6 @@
 flask
 flask-cors
-openpyxl
+openpyxl==3.1.2
 gunicorn
 XlsxWriter
 Pillow
