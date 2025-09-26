@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 from io import BytesIO
 import openpyxl
+from openpyxl.styles import Font, Alignment
 from openpyxl.drawing.image import Image
 
 app = Flask(__name__)
@@ -11,16 +12,6 @@ CORS(app)
 # Paths
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "LSRA_TEMPLATE.xlsx")
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "ASHE_logo.jpg")
-
-def safe_write(ws, cell_ref, value):
-    """Write to a cell or merged cell (top-left only)."""
-    cell = ws[cell_ref]
-    for merged in ws.merged_cells.ranges:
-        if cell.coordinate in merged:
-            tl = ws.cell(merged.min_row, merged.min_col)
-            tl.value = value
-            return
-    cell.value = value
 
 @app.route("/")
 def index():
@@ -38,7 +29,7 @@ def generate_lsra():
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
         ws = wb["Tool"]
 
-        # Insert ASHE logo (simulate header)
+        # Insert ASHE logo at A1 (acts like header)
         if os.path.exists(LOGO_PATH):
             try:
                 img = Image(LOGO_PATH)
@@ -48,14 +39,21 @@ def generate_lsra():
             except Exception as e:
                 print("⚠️ Logo insertion failed:", e)
 
-        # Fill extracted data (safe with merged cells)
-        safe_write(ws, "A23", f"Date: {data.get('dateOfInspection', '')}")
-        safe_write(ws, "A24", f"Location Address: {data.get('address', '')}")
-        safe_write(ws, "A25", "Action(s) Taken: Creation of Corrective Action Plan, ILSM created, notified engineering.")
-        safe_write(ws, "A26", f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}")
-        safe_write(ws, "A27", "ILSM Required? YES")
+        # Build content for A15
+        content = (
+            f"Date: {data.get('dateOfInspection', '')}\n"
+            f"Location Address: {data.get('address', '')}\n"
+            f"Action(s) Taken: Creation of Corrective Action Plan, ILSM created, notified engineering.\n"
+            f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}\n"
+            f"ILSM Required? YES"
+        )
 
-        # Save to memory
+        # Write everything into A15
+        ws["A15"] = content
+        ws["A15"].alignment = Alignment(wrap_text=True, vertical="top")
+        ws["A15"].font = Font(name="Calibri", size=11)
+
+        # Save workbook in memory
         output = BytesIO()
         wb.save(output)
         output.seek(0)
