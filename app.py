@@ -5,6 +5,7 @@ from io import BytesIO
 import openpyxl
 from openpyxl.styles import Font, Alignment
 from openpyxl.drawing.image import Image
+from openpyxl.cell.rich_text import CellRichText, TextBlock
 
 app = Flask(__name__)
 CORS(app)
@@ -29,7 +30,7 @@ def generate_lsra():
         wb = openpyxl.load_workbook(TEMPLATE_PATH)
         ws = wb["Tool"]
 
-        # Insert ASHE logo at A1 (acts like header)
+        # Insert ASHE logo at A1
         if os.path.exists(LOGO_PATH):
             try:
                 img = Image(LOGO_PATH)
@@ -39,19 +40,26 @@ def generate_lsra():
             except Exception as e:
                 print("⚠️ Logo insertion failed:", e)
 
-        # Build content for A15
-        content = (
-            f"Date: {data.get('dateOfInspection', '')}\n"
-            f"Location Address: {data.get('address', '')}\n"
-            f"Action(s) Taken: Creation of Corrective Action Plan, ILSM created, notified engineering.\n"
-            f"Person Completing Life Safety Risk Matrix: {data.get('inspector', '')}\n"
-            f"ILSM Required? YES"
-        )
+        # Rich text content for A15
+        rt = CellRichText()
+        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Date: "))
+        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11), f"{data.get('dateOfInspection','')}\n"))
 
-        # Write everything into A15
-        ws["A15"] = content
+        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Location Address: "))
+        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11), f"{data.get('address','')}\n"))
+
+        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Action(s) Taken: "))
+        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11),
+            "Creation of Corrective Action Plan, ILSM created, notified engineering.\n"))
+
+        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "Person Completing Life Safety Risk Matrix: "))
+        rt.append(TextBlock(Font(italic=True, name="Calibri", size=11), f"{data.get('inspector','')}\n"))
+
+        rt.append(TextBlock(Font(bold=True, name="Calibri", size=11), "ILSM Required? "))
+        rt.append(TextBlock(Font(italic=False, name="Calibri", size=11), "YES"))
+
+        ws["A15"].rich_text = rt
         ws["A15"].alignment = Alignment(wrap_text=True, vertical="top")
-        ws["A15"].font = Font(name="Calibri", size=11)
 
         # Save workbook in memory
         output = BytesIO()
